@@ -90,13 +90,6 @@ class Trainer(abc.ABC):
             train_loss.extend(train_result.losses)
             test_loss.extend(test_result.losses)
             # ========================
-
-            # TODO:
-            #  - Optional: Implement early stopping. This is a very useful and
-            #    simple regularization technique that is highly recommended.
-            #  - Optional: Implement checkpoints. You can use the save_checkpoint
-            #    method on this class to save the model to the file specified by
-            #    the checkpoints argument.
             if best_acc is None or test_result.accuracy > best_acc:
                 # ====== YOUR CODE: ======
                 best_acc = test_result.accuracy
@@ -109,7 +102,7 @@ class Trainer(abc.ABC):
                 epochs_without_improvement += 1
                 if early_stopping is not None:
                     if early_stopping == epochs_without_improvement:
-                        print("Early stopping!")
+                        print("\nSTOPPING EARLIER\n")
                         break
                 # ========================
 
@@ -236,7 +229,6 @@ class Trainer(abc.ABC):
 
 
 
-
 class ADTrainer(Trainer):
     def __init__(
             self,
@@ -257,11 +249,10 @@ class ADTrainer(Trainer):
         self.loss_fn = loss_fn
 
     def train_batch(self, batch) -> BatchResult:
-        latent, images = batch
-        latent = latent.to(self.device)  # Image batch (N,C,H,W)
-        
+        images = None
+        indicies = None
         # ====== YOUR CODE: ======
-        reconstructed = self.model.forward(x)
+        reconstructed = self.model.forward(indicies)
         loss = self.loss_fn(images, reconstructed)
 
         self.optimizer.zero_grad()
@@ -276,57 +267,9 @@ class ADTrainer(Trainer):
         latent = latent.to(self.device)  # Image batch (N,C,H,W)
 
         with torch.no_grad():
-            # TODO: Evaluate a VAE on one batch.
             # ====== YOUR CODE: ======
-            reconstructed = self.model.forward(x)
+            reconstructed = self.model.forward(latent)
             loss = self.loss_fn(images, reconstructed)
             # ========================
 
         return BatchResult(loss.item(), latent.shape[0])
-
-class VADTrainer(Trainer):
-    def __init__(
-            self,
-            model: nn.Module,
-            loss_fn: nn.Module,
-            optimizer: Optimizer,
-            device: Optional[torch.device] = None,
-    ):
-        """
-        Initialize the trainer.
-        :param model: Instance of the classifier model to train.
-        :param loss_fn: The loss function to evaluate with.
-        :param optimizer: The optimizer to train with.
-        :param device: torch.device to run training on (CPU or GPU).
-        """
-        super().__init__(model, device)
-        self.optimizer = optimizer
-        self.loss_fn = loss_fn
-
-    def train_batch(self, batch) -> BatchResult:
-        x, _ = batch
-        x = x.to(self.device)  # Image batch (N,C,H,W)
-        # TODO: Train a VAE on one batch.
-        # ====== YOUR CODE: ======
-        xr, mu, log_sigma2 = self.model.forward(x)
-        loss, data_loss, _ = self.loss_fn(x, xr, mu, log_sigma2)
-
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-        # ========================
-
-        return BatchResult(loss.item(), 1 / data_loss.item())
-
-    def test_batch(self, batch) -> BatchResult:
-        x, _ = batch
-        x = x.to(self.device)  # Image batch (N,C,H,W)
-
-        with torch.no_grad():
-            # TODO: Evaluate a VAE on one batch.
-            # ====== YOUR CODE: ======
-            xr, mu, log_sigma2 = self.model.forward(x)
-            loss, data_loss, _ = self.loss_fn(x, xr, mu, log_sigma2)
-            # ========================
-
-        return BatchResult(loss.item(), 1 / data_loss.item())
