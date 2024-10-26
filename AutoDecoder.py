@@ -1,38 +1,40 @@
 import torch
 import torch.nn as nn
-import utils
-import training
 
 class AutoDecoder(nn.Module):
-    def __init__(self, in_channels, out_channels, train_ds_len, device = "cpu"):
+    def __init__(self, x_dim, z_dim, latent_vectors, device=torch.device("cpu")):
         super().__init__()
+        self.device = device
+        self.x_dim = x_dim
+        self.z_dim = z_dim
+        self.latent_vectors=nn.parameter.Parameter(latent_vectors, True)
 
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(in_channels, 512, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(z_dim, 128, kernel_size=7, stride=1, padding=0),  
+            nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.BatchNorm2d(512),
-
-            nn.ConvTranspose2d(512, 256, kernel_size=4, stride=2, padding=1),
+            
+            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),  
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.BatchNorm2d(256),
-
-            nn.ConvTranspose2d(256, out_channels, kernel_size=4, stride=2, padding=1),
-
-            nn.Tanh()
+            
+            nn.ConvTranspose2d(64, 1, kernel_size=4, stride=2, padding=1),
+            nn.Sigmoid()
         )
-
-        self.latent_vectors = torch.randn(train_ds_len, in_channels, requires_grad=True, device = device)
-        #self.optimizer = torch.optim.Adam(self.parameters() , lr=1e-4)
-        #self.loss = nn.MSELoss()
-
-    def forward(self, indices):
-        # Select the latent vectors corresponding to the input indices
-        latent_vectors = self.latent_vectors[indices]
+        
+        self.mlp = nn.Linear(x_dim,x_dim,bias=True)
+        
     
-        # Reshape the latent vectors to add the spatial dimensions (1, 1) required by ConvTranspose2d
-        latent_vectors = latent_vectors.view(len(indices), -1, 1, 1)
-    
-        # Decode each latent vector into an image
-        reconstructed_images = self.decoder(latent_vectors)
-    
+    def decode(self, z):
+        z = z.view(-1, self.z_dim, 1, 1)
+        reconstructed_images = 255 * self.decoder(z).view(-1,28*28) # Output in range [0, 255]
+        reconstructed_images = self.mlp(reconstructed_images)
+        reconstructed_images = reconstructed_images.view(z.shape[0], 28, 28)
         return reconstructed_images
+    
+    def forward(self, z):
+        z = z.view(-1, self.z_dim, 1, 1)
+        reconstructed_images = 255 * self.decoder(z).view(-1,28*28) # Output in range [0, 255]
+        reconstructed_images = self.mlp(reconstructed_images)
+        reconstructed_images = reconstructed_images.view(z.shape[0], 28, 28)
+        return reconstructed_images 
